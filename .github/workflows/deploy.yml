@@ -1,0 +1,62 @@
+name: Deploy to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    # Step 1 - Get code
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # Step 2 - Setup .NET
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: '8.0.x'
+
+    # Step 3 - Build and publish
+    - name: Build and Publish
+      run: |
+        cd Backend/StudentsApi
+        dotnet restore
+        dotnet publish -c Release -o ./publish
+
+    # Step 4 - Create appsettings for production
+    - name: Create appsettings.Production.json
+      run: |
+        echo '{
+          "ConnectionStrings": {
+            "DefaultConnection": "${{ secrets.RDS_CONNECTION }}"
+          }
+        }' > Backend/StudentsApi/publish/appsettings.Production.json
+
+    # Step 5 - Copy files to EC2
+    - name: Deploy to EC2
+      uses: appleboy/scp-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: "Backend/StudentsApi/publish/*"
+        target: "/home/ubuntu/studentapi"
+        strip_components: 3
+
+    # Step 6 - Restart app on EC2
+    - name: Restart API on EC2
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.EC2_HOST }}
+        username: ${{ secrets.EC2_USER }}
+        key: ${{ secrets.EC2_SSH_KEY }}
+        script: |
+          export ASPNETCORE_ENVIRONMENT=Production
+          pkill -f "dotnet" || true
+          cd /home/ubuntu/studentapi
+          nohup dotnet StudentsApi.dll --urls "http://0.0.0.0:5000" > app.log 2>&1 &
+          echo "API started"
