@@ -22,10 +22,9 @@ jobs:
 
     # Step 3 - Build and publish
     - name: Build and Publish
-      run: |
-        cd Backend/StudentsApi
-        dotnet restore
-        dotnet publish -c Release -o ./publish
+    run: |
+  dotnet restore Backend/StudentsApi/StudentsApi.csproj
+  dotnet publish Backend/StudentsApi/StudentsApi.csproj -c Release -o ./publish
 
     # Step 4 - Create appsettings for production
     - name: Create appsettings.Production.json
